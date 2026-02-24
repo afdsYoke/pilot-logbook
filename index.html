@@ -4,129 +4,265 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>비행시간 기록부 - Cloud Sync</title>
-    <!-- 외부 라이브러리 -->
+    <title>Pilot Logbook Professional</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --cockpit-bg: #0f172a;
+            --panel-bg: #1e293b;
+            --accent-blue: #3b82f6;
+            --accent-emerald: #10b981;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
-            background: linear-gradient(135deg, #0a1628 0%, #1e293b 100%);
-            color: #e2e8f0;
-            padding: 15px;
-            min-height: 100vh;
+            font-family: 'Inter', 'Malgun Gothic', sans-serif;
+            background-color: var(--cockpit-bg);
+            color: #f1f5f9;
+            letter-spacing: -0.01em;
         }
-        .glass-card {
+
+        .glass-panel {
             background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
+
         input, select {
-            background: #1e293b !important;
+            background: rgba(15, 23, 42, 0.6) !important;
             border: 1px solid #334155 !important;
-            color: white !important;
-            padding: 8px;
-            border-radius: 6px;
+            transition: all 0.2s ease;
         }
+
+        input:focus {
+            border-color: var(--accent-blue) !important;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            transition: transform 0.1s active;
+        }
+
+        /* 커스텀 스크롤바 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--cockpit-bg); }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
         .hidden-screen { display: none; }
-        /* 터치 타겟 크기 최적화 */
-        button, input { min-height: 44px; }
     </style>
 </head>
-<body>
-    <div class="max-w-[1600px] mx-auto">
-        <!-- 로그인 화면 -->
-        <div id="login-screen" class="flex flex-col items-center justify-center min-h-[80vh]">
-            <div class="glass-card p-10 text-center shadow-2xl">
-                <h1 class="text-3xl font-bold mb-4 text-blue-400">비행시간 기록부</h1>
-                <p class="text-gray-400 mb-8">기기 간 실시간 동기화를 시작합니다.</p>
-                <button id="btn-login-action" class="bg-blue-600 hover:bg-blue-500 text-white px-10 py-3 rounded-full font-bold transition-all transform hover:scale-105">
-                    동기화 시작하기 (로그인)
+<body class="p-4 md:p-8">
+    <div class="max-w-[1700px] mx-auto">
+        
+        <!-- LOGIN SCREEN -->
+        <div id="login-screen" class="flex flex-col items-center justify-center min-h-[85vh]">
+            <div class="glass-panel p-12 rounded-3xl text-center max-w-md w-full border-t-4 border-blue-500">
+                <div class="mb-6 inline-flex p-4 rounded-2xl bg-blue-500/10 text-blue-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <h1 class="text-3xl font-bold mb-2 tracking-tight">Pilot Logbook</h1>
+                <p class="text-slate-400 mb-8 font-medium">Professional Flight Records Management</p>
+                <button id="btn-login" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-900/20">
+                    Sync via Cloud
                 </button>
             </div>
         </div>
 
-        <!-- 메인 앱 화면 -->
+        <!-- MAIN CONTENT -->
         <div id="main-content" class="hidden-screen">
-            <header class="glass-card p-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4 border-l-4 border-blue-500">
+            <!-- Header -->
+            <header class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
                 <div>
-                    <h1 class="text-2xl font-bold">비행시간 기록부 <span id="user-display" class="text-sm font-normal text-blue-400"></span></h1>
-                    <p class="text-sm text-gray-400">실시간 클라우드 동기화 중</p>
+                    <h2 class="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
+                        FLIGHT OPERATIONS <span class="bg-blue-500 text-[10px] px-2 py-1 rounded text-white font-bold uppercase tracking-widest">Live Sync</span>
+                    </h2>
+                    <p class="text-slate-400 mt-1 flex items-center gap-2">
+                        <span id="user-display" class="font-mono text-blue-400 text-sm"></span>
+                        <span class="w-1 h-1 rounded-full bg-slate-600"></span>
+                        <span class="text-xs uppercase tracking-tighter">System Ready</span>
+                    </p>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                    <button id="btn-export" class="bg-emerald-600 px-4 py-2 rounded text-sm hover:bg-emerald-500">Excel 내보내기</button>
-                    <button id="btn-logout-action" class="bg-red-600 px-4 py-2 rounded text-sm hover:bg-red-500">로그아웃</button>
+                <div class="flex flex-wrap gap-3">
+                    <input type="file" id="excel-input" class="hidden" accept=".xlsx, .xls">
+                    <button onclick="document.getElementById('excel-input').click()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-5 py-2.5 rounded-lg text-sm font-semibold border border-slate-700 flex items-center gap-2 transition-all">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        Import Excel
+                    </button>
+                    <button id="btn-export" class="bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white px-5 py-2.5 rounded-lg text-sm font-semibold border border-emerald-600/30 flex items-center gap-2 transition-all">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        Export Log
+                    </button>
+                    <button id="btn-logout" class="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-5 py-2.5 rounded-lg text-sm font-semibold border border-red-500/30 transition-all">
+                        Logout
+                    </button>
                 </div>
             </header>
 
-            <!-- 입력 폼 -->
-            <section class="glass-card p-6 mb-6">
-                <form id="flight-form" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                    <div class="flex flex-col"><label class="text-xs mb-1">Date</label><input type="date" id="date" required></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">Aircraft</label><input type="text" id="aircraft" placeholder="HL0000" required></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">Flt No</label><input type="text" id="fltNo"></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">From</label><input type="text" id="from" placeholder="RKSS" required></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">To</label><input type="text" id="to" placeholder="RKPC" required></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">BLOCK</label><input type="text" id="blockTime" placeholder="1:30" required></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">PIC</label><input type="text" id="pic" placeholder="1:30"></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">PIC_Supv</label><input type="text" id="picSupv"></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">CoPilot</label><input type="text" id="coPilot"></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">TR</label><input type="text" id="tr"></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">NIGHT</label><input type="text" id="night"></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">INST</label><input type="text" id="instTime"></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">T/O</label><input type="number" id="toCount" value="1"></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">L/D</label><input type="number" id="ldCount" value="1"></div>
-                    <div class="flex flex-col lg:col-span-2"><label class="text-xs mb-1">Remark</label><input type="text" id="remark"></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">Wx</label><input type="text" id="wx"></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">Landing</label><input type="text" id="landingCmt"></div>
-                    <div class="flex flex-col"><label class="text-xs mb-1">Clearance</label><input type="text" id="clearance"></div>
-                    <div class="flex flex-col lg:col-span-2"><label class="text-xs mb-1">TIP</label><input type="text" id="tip"></div>
-                    <div class="flex items-end"><button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded font-bold">기록 추가</button></div>
-                </form>
-            </section>
+            <!-- Input Console -->
+            <div class="glass-panel rounded-2xl p-6 mb-8 border-l-4 border-blue-500">
+                <form id="flight-form">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-6">
+                        <!-- Group 1: Core Info -->
+                        <div class="xl:col-span-2 grid grid-cols-2 gap-3">
+                            <div class="col-span-1">
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Date</label>
+                                <input type="date" id="date" class="w-full rounded-lg px-3 py-2 text-sm" required>
+                            </div>
+                            <div class="col-span-1">
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">A/C Registration</label>
+                                <input type="text" id="aircraft" class="w-full rounded-lg px-3 py-2 text-sm uppercase" placeholder="HL0000" required>
+                            </div>
+                            <div class="col-span-1">
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Flt No</label>
+                                <input type="text" id="fltNo" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="KE121">
+                            </div>
+                            <div class="col-span-1 flex gap-2">
+                                <div class="w-1/2">
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">From</label>
+                                    <input type="text" id="from" class="w-full rounded-lg px-3 py-2 text-sm uppercase" placeholder="RKSS" required>
+                                </div>
+                                <div class="w-1/2">
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">To</label>
+                                    <input type="text" id="to" class="w-full rounded-lg px-3 py-2 text-sm uppercase" placeholder="RKPC" required>
+                                </div>
+                            </div>
+                        </div>
 
-            <!-- 통계 요약 -->
-            <div id="stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div class="glass-card p-4 text-center"><p class="text-gray-400 text-xs">Total Flights</p><p id="stat-count" class="text-xl font-bold">0</p></div>
-                <div class="glass-card p-4 text-center"><p class="text-gray-400 text-xs">Total Block</p><p id="stat-block" class="text-xl font-bold text-blue-400">0:00</p></div>
-                <div class="glass-card p-4 text-center"><p class="text-gray-400 text-xs">Total PIC</p><p id="stat-pic" class="text-xl font-bold text-emerald-400">0:00</p></div>
-                <div class="glass-card p-4 text-center"><p class="text-gray-400 text-xs">Total Landings</p><p id="stat-ld" class="text-xl font-bold">0</p></div>
+                        <!-- Group 2: Time Info -->
+                        <div class="xl:col-span-3 grid grid-cols-3 md:grid-cols-6 gap-3 bg-slate-800/30 p-3 rounded-xl border border-slate-700/50">
+                            <div>
+                                <label class="block text-[10px] font-bold text-blue-400 uppercase mb-1.5">Block</label>
+                                <input type="text" id="blockTime" class="w-full rounded-lg px-3 py-2 text-sm text-center" placeholder="0:00" required>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-emerald-400 uppercase mb-1.5">PIC</label>
+                                <input type="text" id="pic" class="w-full rounded-lg px-3 py-2 text-sm text-center" placeholder="0:00">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">PIC Supv</label>
+                                <input type="text" id="picSupv" class="w-full rounded-lg px-3 py-2 text-sm text-center" placeholder="0:00">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">CoPilot</label>
+                                <input type="text" id="coPilot" class="w-full rounded-lg px-3 py-2 text-sm text-center" placeholder="0:00">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">TR</label>
+                                <input type="text" id="tr" class="w-full rounded-lg px-3 py-2 text-sm text-center" placeholder="0:00">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-indigo-400 uppercase mb-1.5">Night</label>
+                                <input type="text" id="night" class="w-full rounded-lg px-3 py-2 text-sm text-center" placeholder="0:00">
+                            </div>
+                        </div>
+
+                        <!-- Group 3: Ops Info -->
+                        <div class="xl:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">INST</label>
+                                <input type="text" id="instTime" class="w-full rounded-lg px-3 py-2 text-sm text-center" placeholder="0:00">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">T/O</label>
+                                <input type="number" id="toCount" class="w-full rounded-lg px-3 py-2 text-sm text-center" value="1">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">L/D</label>
+                                <input type="number" id="ldCount" class="w-full rounded-lg px-3 py-2 text-sm text-center" value="1">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Wx</label>
+                                <input type="text" id="wx" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="VFR">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mt-6 pt-6 border-t border-slate-700/50">
+                        <div class="lg:col-span-1">
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Landing Condition</label>
+                            <input type="text" id="landingCmt" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="Normal">
+                        </div>
+                        <div class="lg:col-span-1">
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Clearance</label>
+                            <input type="text" id="clearance" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="IFR">
+                        </div>
+                        <div class="lg:col-span-2">
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Remark</label>
+                            <input type="text" id="remark" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="Any flight notes...">
+                        </div>
+                        <div class="lg:col-span-1">
+                            <label class="block text-[10px] font-bold text-amber-500 uppercase mb-1.5">TIP</label>
+                            <input type="text" id="tip" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="Personal Tip">
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit" class="w-full btn-primary text-white font-bold py-2 rounded-lg text-sm shadow-lg">
+                                EXECUTE RECORD
+                            </button>
+                        </div>
+                    </div>
+                </form>
             </div>
 
-            <!-- 데이터 테이블 -->
-            <div class="glass-card overflow-x-auto shadow-2xl">
-                <table class="w-full text-left text-sm whitespace-nowrap">
-                    <thead class="bg-slate-800/80 border-b border-slate-700">
-                        <tr>
-                            <th class="p-3">Date</th>
-                            <th class="p-3">AC</th>
-                            <th class="p-3">Route</th>
-                            <th class="p-3 text-blue-300">BLOCK</th>
-                            <th class="p-3 text-emerald-300">PIC</th>
-                            <th class="p-3">CP</th>
-                            <th class="p-3">NIGHT</th>
-                            <th class="p-3">LD</th>
-                            <th class="p-3">Remark</th>
-                            <th class="p-3">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="flight-list">
-                        <tr><td colspan="10" class="p-10 text-center text-gray-500">데이터를 불러오는 중입니다...</td></tr>
-                    </tbody>
-                </table>
+            <!-- Stats Bar -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="glass-panel p-5 rounded-2xl flex items-center gap-4">
+                    <div class="p-3 rounded-xl bg-blue-500/10 text-blue-500"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div><p class="text-[10px] font-bold text-slate-500 uppercase">Sorties</p><p id="stat-count" class="text-2xl font-bold">0</p></div>
+                </div>
+                <div class="glass-panel p-5 rounded-2xl flex items-center gap-4 border-b-2 border-blue-500">
+                    <div class="p-3 rounded-xl bg-blue-500/10 text-blue-500"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div><p class="text-[10px] font-bold text-slate-500 uppercase">Total Block</p><p id="stat-block" class="text-2xl font-bold text-blue-400">0:00</p></div>
+                </div>
+                <div class="glass-panel p-5 rounded-2xl flex items-center gap-4 border-b-2 border-emerald-500">
+                    <div class="p-3 rounded-xl bg-emerald-500/10 text-emerald-500"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div><p class="text-[10px] font-bold text-slate-500 uppercase">Total PIC</p><p id="stat-pic" class="text-2xl font-bold text-emerald-400">0:00</p></div>
+                </div>
+                <div class="glass-panel p-5 rounded-2xl flex items-center gap-4 border-b-2 border-indigo-500">
+                    <div class="p-3 rounded-xl bg-indigo-500/10 text-indigo-500"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div><p class="text-[10px] font-bold text-slate-500 uppercase">Total Night</p><p id="stat-night" class="text-2xl font-bold text-indigo-400">0:00</p></div>
+                </div>
+            </div>
+
+            <!-- Table Console -->
+            <div class="glass-panel rounded-2xl overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm whitespace-nowrap">
+                        <thead class="bg-slate-800/80 border-b border-slate-700">
+                            <tr>
+                                <th class="p-4 font-bold text-slate-400 uppercase text-[10px]">Date</th>
+                                <th class="p-4 font-bold text-slate-400 uppercase text-[10px]">A/C Info</th>
+                                <th class="p-4 font-bold text-slate-400 uppercase text-[10px]">Route</th>
+                                <th class="p-4 font-bold text-blue-400 uppercase text-[10px]">Block</th>
+                                <th class="p-4 font-bold text-emerald-400 uppercase text-[10px]">PIC</th>
+                                <th class="p-4 font-bold text-slate-400 uppercase text-[10px]">Ops (TR/N/I)</th>
+                                <th class="p-4 font-bold text-slate-400 uppercase text-[10px]">LD</th>
+                                <th class="p-4 font-bold text-slate-400 uppercase text-[10px]">Remark</th>
+                                <th class="p-4 font-bold text-slate-400 uppercase text-[10px]">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="flight-list" class="divide-y divide-slate-800">
+                            <tr><td colspan="9" class="p-12 text-center text-slate-500 animate-pulse font-mono uppercase tracking-widest text-xs">Initializing Terminal...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Firebase SDK 로드 -->
+    <!-- Firebase & Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 사용자 Firebase 설정
         const firebaseConfig = {
             apiKey: "AIzaSyD_ZpKW84M8Iocwj3-WueKtPxephXPabts",
             authDomain: "pilot-log-67113.firebaseapp.com",
@@ -139,13 +275,13 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appIdPrefix = "pilot-log-67113"; 
+        const appId = "pilot-log-67113";
 
         let flights = [];
         let user = null;
         let unsubscribe = null;
 
-        // 유틸리티 함수
+        // Utilities
         const toDisplay = (num) => {
             if (!num || isNaN(num)) return "0:00";
             const h = Math.floor(num);
@@ -156,67 +292,80 @@
         const parseTime = (str) => {
             if (!str) return 0;
             if (typeof str === 'number') return str;
-            const parts = str.split(':');
-            if (parts.length === 2) return parseInt(parts[0]) + parseInt(parts[1])/60;
-            return parseFloat(str) || 0;
+            const s = String(str).trim();
+            if (s.includes(':')) {
+                const parts = s.split(':');
+                return (parseInt(parts[0]) || 0) + (parseInt(parts[1]) || 0) / 60;
+            }
+            return parseFloat(s) || 0;
         };
 
-        // 렌더링 함수
-        function render() {
+        const render = () => {
             const list = document.getElementById('flight-list');
             if (!list) return;
 
             if (flights.length === 0) {
-                list.innerHTML = '<tr><td colspan="10" class="p-10 text-center text-gray-500">기록이 없습니다. 첫 비행을 기록해보세요!</td></tr>';
+                list.innerHTML = '<tr><td colspan="9" class="p-16 text-center text-slate-500 uppercase tracking-widest text-xs">No Records Found</td></tr>';
                 return;
             }
 
-            let totalBlock = 0, totalPic = 0, totalLd = 0;
+            let totals = { block: 0, pic: 0, night: 0, ld: 0 };
+
             list.innerHTML = flights.map(f => {
-                totalBlock += (f.blockTime || 0);
-                totalPic += (f.pic || 0);
-                totalLd += (parseInt(f.ldCount) || 0);
+                totals.block += (f.blockTime || 0);
+                totals.pic += (f.pic || 0);
+                totals.night += (f.night || 0);
+                totals.ld += (parseInt(f.ldCount) || 0);
+
                 return `
-                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                        <td class="p-3">${f.date}</td>
-                        <td class="p-3 font-bold">${f.aircraft}</td>
-                        <td class="p-3 text-gray-400">${f.from} → ${f.to}</td>
-                        <td class="p-3 text-blue-300 font-semibold">${toDisplay(f.blockTime)}</td>
-                        <td class="p-3 text-emerald-300">${toDisplay(f.pic)}</td>
-                        <td class="p-3">${toDisplay(f.coPilot)}</td>
-                        <td class="p-3">${toDisplay(f.night)}</td>
-                        <td class="p-3">${f.ldCount || 0}</td>
-                        <td class="p-3 text-xs max-w-xs truncate">${f.remark || ''}</td>
-                        <td class="p-3">
-                            <button onclick="window.deleteItem('${f.id}')" class="text-red-400 hover:text-red-300 text-xs px-2 py-1 border border-red-900/50 rounded">Delete</button>
+                    <tr class="hover:bg-slate-800/50 transition-colors group">
+                        <td class="p-4 text-slate-300 font-mono text-xs">${f.date}</td>
+                        <td class="p-4">
+                            <div class="font-bold text-slate-100">${f.aircraft}</div>
+                            <div class="text-[10px] text-slate-500 font-mono">${f.fltNo || '-'}</div>
                         </td>
-                    </tr>`;
+                        <td class="p-4">
+                            <div class="text-xs font-semibold text-slate-400">${f.from} <span class="text-slate-600 px-1">→</span> ${f.to}</div>
+                        </td>
+                        <td class="p-4 font-bold text-blue-400 font-mono">${toDisplay(f.blockTime)}</td>
+                        <td class="p-4 font-bold text-emerald-400 font-mono">${toDisplay(f.pic)}</td>
+                        <td class="p-4 text-[11px] text-slate-400 font-mono">
+                            <span title="TR">${toDisplay(f.tr)}</span> / 
+                            <span class="text-indigo-400 font-bold">${toDisplay(f.night)}</span> / 
+                            <span title="INST">${toDisplay(f.instTime)}</span>
+                        </td>
+                        <td class="p-4 text-slate-300 font-bold">${f.ldCount || 0}</td>
+                        <td class="p-4">
+                            <div class="text-xs text-slate-400 truncate max-w-[150px]" title="${f.remark || ''}">${f.remark || '-'}</div>
+                            <div class="text-[9px] text-amber-500 italic mt-0.5">${f.tip ? 'Tip: ' + f.tip : ''}</div>
+                        </td>
+                        <td class="p-4">
+                            <button onclick="window.deleteItem('${f.id}')" class="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-3 py-1 rounded text-[10px] font-bold uppercase border border-red-500/20">Delete</button>
+                        </td>
+                    </tr>
+                `;
             }).join('');
 
             document.getElementById('stat-count').innerText = flights.length;
-            document.getElementById('stat-block').innerText = toDisplay(totalBlock);
-            document.getElementById('stat-pic').innerText = toDisplay(totalPic);
-            document.getElementById('stat-ld').innerText = totalLd;
-        }
+            document.getElementById('stat-block').innerText = toDisplay(totals.block);
+            document.getElementById('stat-pic').innerText = toDisplay(totals.pic);
+            document.getElementById('stat-night').innerText = toDisplay(totals.night);
+        };
 
-        // 인증 상태 감시
+        // Auth Logic
         onAuthStateChanged(auth, (u) => {
             user = u;
             if (user) {
                 document.getElementById('login-screen').classList.add('hidden-screen');
                 document.getElementById('main-content').classList.remove('hidden-screen');
-                document.getElementById('user-display').innerText = `(ID: ${user.uid.substring(0,6)})`;
+                document.getElementById('user-display').innerText = `PILOT_ID: ${user.uid.substring(0,8).toUpperCase()}`;
                 
-                // Firestore 구독 시작 (Rule 3 준수)
-                const q = query(collection(db, 'artifacts', appIdPrefix, 'users', user.uid, 'flights'));
+                const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'flights'));
                 unsubscribe = onSnapshot(q, (snapshot) => {
                     flights = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     flights.sort((a, b) => new Date(b.date) - new Date(a.date));
                     render();
-                }, (err) => {
-                    console.error("Snapshot Error:", err);
-                    alert("데이터를 가져올 권한이 없거나 오류가 발생했습니다.");
-                });
+                }, (err) => console.error(err));
             } else {
                 if (unsubscribe) unsubscribe();
                 document.getElementById('login-screen').classList.remove('hidden-screen');
@@ -224,20 +373,57 @@
             }
         });
 
-        // 전역 함수 등록 (Module Scope 해결)
+        // Global functions for HTML
         window.deleteItem = async (id) => {
-            if (!user) return;
-            if (confirm("정말 이 비행 기록을 삭제하시겠습니까?")) {
-                try {
-                    await deleteDoc(doc(db, 'artifacts', appIdPrefix, 'users', user.uid, 'flights', id));
-                } catch (err) {
-                    alert("삭제 실패: " + err.message);
-                }
+            if (confirm("CONFIRM COMMAND: DELETE RECORD?")) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'flights', id));
             }
         };
 
+        window.handleExcelImport = (e) => {
+            const file = e.target.files[0];
+            if (!file || !user) return;
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const data = new Uint8Array(event.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                
+                const rows = jsonData.slice(1);
+                for (const row of rows) {
+                    if (!row[0] || !row[1]) continue;
+                    const flightData = {
+                        date: String(row[0]),
+                        aircraft: String(row[1]),
+                        fltNo: String(row[2] || ''),
+                        from: String(row[3] || ''),
+                        to: String(row[4] || ''),
+                        blockTime: parseTime(row[5]),
+                        pic: parseTime(row[6]),
+                        picSupv: parseTime(row[7]),
+                        coPilot: parseTime(row[8]),
+                        tr: parseTime(row[9]),
+                        night: parseTime(row[10]),
+                        instTime: parseTime(row[11]),
+                        toCount: parseInt(row[12]) || 0,
+                        ldCount: parseInt(row[13]) || 0,
+                        remark: String(row[14] || ''),
+                        wx: String(row[15] || ''),
+                        landingCmt: String(row[16] || ''),
+                        clearance: String(row[17] || ''),
+                        tip: String(row[18] || ''),
+                        createdAt: serverTimestamp()
+                    };
+                    await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'flights'), flightData);
+                }
+                alert("BATCH IMPORT COMPLETED");
+                e.target.value = '';
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
         window.exportExcel = () => {
-            if (flights.length === 0) return alert("내보낼 데이터가 없습니다.");
             const data = flights.map(f => [
                 f.date, f.aircraft, f.fltNo, f.from, f.to, toDisplay(f.blockTime), toDisplay(f.pic), 
                 toDisplay(f.picSupv), toDisplay(f.coPilot), toDisplay(f.tr), toDisplay(f.night),
@@ -246,16 +432,14 @@
             data.unshift(['Date', 'AC', 'FltNo', 'From', 'To', 'BLOCK', 'PIC', 'PIC_Supv', 'CP', 'TR', 'NIGHT', 'INST', 'T/O', 'L/D', 'Remark', 'Wx', 'Landing', 'Clearance', 'TIP']);
             const ws = XLSX.utils.aoa_to_sheet(data);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "FlightLog");
-            XLSX.writeFile(wb, `FlightLog_${new Date().toISOString().slice(0,10)}.xlsx`);
+            XLSX.utils.book_append_sheet(wb, ws, "Logbook");
+            XLSX.writeFile(wb, `PilotLog_${new Date().toISOString().slice(0,10)}.xlsx`);
         };
 
-        // 이벤트 리스너
+        // UI Listeners
         document.getElementById('flight-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!user) return alert("로그인이 필요합니다.");
-
-            const docData = {
+            const payload = {
                 date: document.getElementById('date').value,
                 aircraft: document.getElementById('aircraft').value,
                 fltNo: document.getElementById('fltNo').value,
@@ -277,18 +461,14 @@
                 tip: document.getElementById('tip').value,
                 createdAt: serverTimestamp()
             };
-
-            try {
-                await addDoc(collection(db, 'artifacts', appIdPrefix, 'users', user.uid, 'flights'), docData);
-                e.target.reset();
-            } catch (err) {
-                alert("저장 오류: " + err.message);
-            }
+            await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'flights'), payload);
+            e.target.reset();
         };
 
-        document.getElementById('btn-login-action').onclick = () => signInAnonymously(auth);
-        document.getElementById('btn-logout-action').onclick = () => signOut(auth);
+        document.getElementById('btn-login').onclick = () => signInAnonymously(auth);
+        document.getElementById('btn-logout').onclick = () => signOut(auth);
         document.getElementById('btn-export').onclick = () => window.exportExcel();
+        document.getElementById('excel-input').onchange = (e) => window.handleExcelImport(e);
     </script>
 </body>
 </html>
