@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>비행시간 기록부 - Cloud Sync</title>
+    <!-- 외부 라이브러리 -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -30,6 +31,8 @@
             border-radius: 6px;
         }
         .hidden-screen { display: none; }
+        /* 터치 타겟 크기 최적화 */
+        button, input { min-height: 44px; }
     </style>
 </head>
 <body>
@@ -39,7 +42,7 @@
             <div class="glass-card p-10 text-center shadow-2xl">
                 <h1 class="text-3xl font-bold mb-4 text-blue-400">비행시간 기록부</h1>
                 <p class="text-gray-400 mb-8">기기 간 실시간 동기화를 시작합니다.</p>
-                <button id="btn-login" class="bg-blue-600 hover:bg-blue-500 text-white px-10 py-3 rounded-full font-bold transition-all transform hover:scale-105">
+                <button id="btn-login-action" class="bg-blue-600 hover:bg-blue-500 text-white px-10 py-3 rounded-full font-bold transition-all transform hover:scale-105">
                     동기화 시작하기 (로그인)
                 </button>
             </div>
@@ -50,16 +53,15 @@
             <header class="glass-card p-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4 border-l-4 border-blue-500">
                 <div>
                     <h1 class="text-2xl font-bold">비행시간 기록부 <span id="user-display" class="text-sm font-normal text-blue-400"></span></h1>
-                    <p class="text-sm text-gray-400">실시간 클라우드 동기화 모드</p>
+                    <p class="text-sm text-gray-400">실시간 클라우드 동기화 중</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <input type="file" id="excel-input" accept=".xlsx, .xls" class="hidden">
-                    <button onclick="document.getElementById('excel-input').click()" class="bg-indigo-600 px-4 py-2 rounded text-sm hover:bg-indigo-500">Excel 가져오기</button>
-                    <button onclick="exportExcel()" class="bg-emerald-600 px-4 py-2 rounded text-sm hover:bg-emerald-500">Excel 내보내기</button>
-                    <button id="btn-logout" class="bg-red-600 px-4 py-2 rounded text-sm hover:bg-red-500">로그아웃</button>
+                    <button id="btn-export" class="bg-emerald-600 px-4 py-2 rounded text-sm hover:bg-emerald-500">Excel 내보내기</button>
+                    <button id="btn-logout-action" class="bg-red-600 px-4 py-2 rounded text-sm hover:bg-red-500">로그아웃</button>
                 </div>
             </header>
 
+            <!-- 입력 폼 -->
             <section class="glass-card p-6 mb-6">
                 <form id="flight-form" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                     <div class="flex flex-col"><label class="text-xs mb-1">Date</label><input type="date" id="date" required></div>
@@ -85,6 +87,7 @@
                 </form>
             </section>
 
+            <!-- 통계 요약 -->
             <div id="stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div class="glass-card p-4 text-center"><p class="text-gray-400 text-xs">Total Flights</p><p id="stat-count" class="text-xl font-bold">0</p></div>
                 <div class="glass-card p-4 text-center"><p class="text-gray-400 text-xs">Total Block</p><p id="stat-block" class="text-xl font-bold text-blue-400">0:00</p></div>
@@ -92,6 +95,7 @@
                 <div class="glass-card p-4 text-center"><p class="text-gray-400 text-xs">Total Landings</p><p id="stat-ld" class="text-xl font-bold">0</p></div>
             </div>
 
+            <!-- 데이터 테이블 -->
             <div class="glass-card overflow-x-auto shadow-2xl">
                 <table class="w-full text-left text-sm whitespace-nowrap">
                     <thead class="bg-slate-800/80 border-b border-slate-700">
@@ -109,19 +113,20 @@
                         </tr>
                     </thead>
                     <tbody id="flight-list">
-                        <tr><td colspan="10" class="p-10 text-center text-gray-500">데이터를 불러오는 중...</td></tr>
+                        <tr><td colspan="10" class="p-10 text-center text-gray-500">데이터를 불러오는 중입니다...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
+    <!-- Firebase SDK 로드 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 사용자 Firebase 설정 (적용 완료)
+        // 사용자 Firebase 설정
         const firebaseConfig = {
             apiKey: "AIzaSyD_ZpKW84M8Iocwj3-WueKtPxephXPabts",
             authDomain: "pilot-log-67113.firebaseapp.com",
@@ -134,11 +139,13 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = "pilot-log-67113"; 
+        const appIdPrefix = "pilot-log-67113"; 
 
         let flights = [];
         let user = null;
+        let unsubscribe = null;
 
+        // 유틸리티 함수
         const toDisplay = (num) => {
             if (!num || isNaN(num)) return "0:00";
             const h = Math.floor(num);
@@ -154,10 +161,13 @@
             return parseFloat(str) || 0;
         };
 
+        // 렌더링 함수
         function render() {
             const list = document.getElementById('flight-list');
+            if (!list) return;
+
             if (flights.length === 0) {
-                list.innerHTML = '<tr><td colspan="10" class="p-10 text-center text-gray-500">기록이 없습니다.</td></tr>';
+                list.innerHTML = '<tr><td colspan="10" class="p-10 text-center text-gray-500">기록이 없습니다. 첫 비행을 기록해보세요!</td></tr>';
                 return;
             }
 
@@ -177,7 +187,9 @@
                         <td class="p-3">${toDisplay(f.night)}</td>
                         <td class="p-3">${f.ldCount || 0}</td>
                         <td class="p-3 text-xs max-w-xs truncate">${f.remark || ''}</td>
-                        <td class="p-3"><button onclick="window.deleteItem('${f.id}')" class="text-red-400 hover:underline">Delete</button></td>
+                        <td class="p-3">
+                            <button onclick="window.deleteItem('${f.id}')" class="text-red-400 hover:text-red-300 text-xs px-2 py-1 border border-red-900/50 rounded">Delete</button>
+                        </td>
                     </tr>`;
             }).join('');
 
@@ -187,27 +199,62 @@
             document.getElementById('stat-ld').innerText = totalLd;
         }
 
+        // 인증 상태 감시
         onAuthStateChanged(auth, (u) => {
             user = u;
             if (user) {
                 document.getElementById('login-screen').classList.add('hidden-screen');
                 document.getElementById('main-content').classList.remove('hidden-screen');
-                document.getElementById('user-display').innerText = `(${user.uid.substring(0,5)})`;
-                const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'flights'));
-                onSnapshot(q, (snapshot) => {
+                document.getElementById('user-display').innerText = `(ID: ${user.uid.substring(0,6)})`;
+                
+                // Firestore 구독 시작 (Rule 3 준수)
+                const q = query(collection(db, 'artifacts', appIdPrefix, 'users', user.uid, 'flights'));
+                unsubscribe = onSnapshot(q, (snapshot) => {
                     flights = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     flights.sort((a, b) => new Date(b.date) - new Date(a.date));
                     render();
+                }, (err) => {
+                    console.error("Snapshot Error:", err);
+                    alert("데이터를 가져올 권한이 없거나 오류가 발생했습니다.");
                 });
             } else {
+                if (unsubscribe) unsubscribe();
                 document.getElementById('login-screen').classList.remove('hidden-screen');
                 document.getElementById('main-content').classList.add('hidden-screen');
             }
         });
 
+        // 전역 함수 등록 (Module Scope 해결)
+        window.deleteItem = async (id) => {
+            if (!user) return;
+            if (confirm("정말 이 비행 기록을 삭제하시겠습니까?")) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appIdPrefix, 'users', user.uid, 'flights', id));
+                } catch (err) {
+                    alert("삭제 실패: " + err.message);
+                }
+            }
+        };
+
+        window.exportExcel = () => {
+            if (flights.length === 0) return alert("내보낼 데이터가 없습니다.");
+            const data = flights.map(f => [
+                f.date, f.aircraft, f.fltNo, f.from, f.to, toDisplay(f.blockTime), toDisplay(f.pic), 
+                toDisplay(f.picSupv), toDisplay(f.coPilot), toDisplay(f.tr), toDisplay(f.night),
+                toDisplay(f.instTime), f.toCount, f.ldCount, f.remark, f.wx, f.landingCmt, f.clearance, f.tip
+            ]);
+            data.unshift(['Date', 'AC', 'FltNo', 'From', 'To', 'BLOCK', 'PIC', 'PIC_Supv', 'CP', 'TR', 'NIGHT', 'INST', 'T/O', 'L/D', 'Remark', 'Wx', 'Landing', 'Clearance', 'TIP']);
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "FlightLog");
+            XLSX.writeFile(wb, `FlightLog_${new Date().toISOString().slice(0,10)}.xlsx`);
+        };
+
+        // 이벤트 리스너
         document.getElementById('flight-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!user) return;
+            if (!user) return alert("로그인이 필요합니다.");
+
             const docData = {
                 date: document.getElementById('date').value,
                 aircraft: document.getElementById('aircraft').value,
@@ -230,31 +277,18 @@
                 tip: document.getElementById('tip').value,
                 createdAt: serverTimestamp()
             };
-            await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'flights'), docData);
-            e.target.reset();
-        };
 
-        window.deleteItem = async (id) => {
-            if (confirm("삭제하시겠습니까?")) {
-                await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'flights', id));
+            try {
+                await addDoc(collection(db, 'artifacts', appIdPrefix, 'users', user.uid, 'flights'), docData);
+                e.target.reset();
+            } catch (err) {
+                alert("저장 오류: " + err.message);
             }
         };
 
-        window.exportExcel = () => {
-            const data = flights.map(f => [
-                f.date, f.aircraft, f.fltNo, f.from, f.to, toDisplay(f.blockTime), toDisplay(f.pic), 
-                toDisplay(f.picSupv), toDisplay(f.coPilot), toDisplay(f.tr), toDisplay(f.night),
-                toDisplay(f.instTime), f.toCount, f.ldCount, f.remark, f.wx, f.landingCmt, f.clearance, f.tip
-            ]);
-            data.unshift(['Date', 'AC', 'FltNo', 'From', 'To', 'BLOCK', 'PIC', 'PIC_Supv', 'CP', 'TR', 'NIGHT', 'INST', 'T/O', 'L/D', 'Remark', 'Wx', 'Landing', 'Clearance', 'TIP']);
-            const ws = XLSX.utils.aoa_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "FlightLog");
-            XLSX.writeFile(wb, `FlightLog_${new Date().toISOString().slice(0,10)}.xlsx`);
-        };
-
-        document.getElementById('btn-login').onclick = () => signInAnonymously(auth);
-        document.getElementById('btn-logout').onclick = () => signOut(auth);
+        document.getElementById('btn-login-action').onclick = () => signInAnonymously(auth);
+        document.getElementById('btn-logout-action').onclick = () => signOut(auth);
+        document.getElementById('btn-export').onclick = () => window.exportExcel();
     </script>
 </body>
 </html>
